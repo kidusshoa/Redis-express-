@@ -8,7 +8,7 @@ import {
   reviewDetailsKeyById,
   reviewKeyById,
 } from "../utils/keys.js";
-import { successResponse } from "../utils/responses.js";
+import { errorResponse, successResponse } from "../utils/responses.js";
 import { checkRestaurantExists } from "../middlewares/checkRestaurantExists.js";
 import { ReviewSchema, type Review } from "../schemas/review.js";
 import { timeStamp } from "console";
@@ -77,6 +77,33 @@ router.get(
         reviewIds.map((id) => client.hGetAll(reviewDetailsKeyById(id)))
       );
       successResponse(res, reviews);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.delete(
+  "/:restaurantId/reviews/:reviewId",
+  checkRestaurantExists,
+  async (
+    req: Request<{ restaurantId: string; reviewId: string }>,
+    res,
+    next
+  ) => {
+    const { restaurantId, reviewId } = req.params;
+    try {
+      const client = await initializedRedisClient();
+      const reviewKey = reviewKeyById(restaurantId);
+      const reviewDetailsKey = reviewDetailsKeyById(reviewId);
+      const [removeResult, deleteResult] = await Promise.all([
+        client.lRem(reviewKey, 0, reviewId),
+        client.del(reviewDetailsKey),
+      ]);
+      if (removeResult === 0 && deleteResult === 0) {
+        errorResponse(res, 404, "Review not found");
+      }
+      successResponse(res, reviewId, "Review deleted");
     } catch (error) {
       next(error);
     }
