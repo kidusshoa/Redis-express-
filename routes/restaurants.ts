@@ -17,6 +17,30 @@ import { checkRestaurantExists } from "../middlewares/checkRestaurantExists.js";
 import { ReviewSchema, type Review } from "../schemas/review.js";
 const router = express.Router();
 
+router.get("/", async (req, res, next) => {
+  const { page = 1, limit = 10 } = req.query;
+  const start = (Number(page) - 1) * Number(limit);
+  const end = start + Number(limit) - 1;
+
+  try {
+    const client = await initializedRedisClient();
+    const restaurantIds = await client.zRange(
+      restaurantsByRatingKey,
+      start,
+      end,
+      {
+        REV: true,
+      }
+    );
+    const restaurants = await Promise.all(
+      restaurantIds.map((id) => client.hGetAll(restaurantKeyById(id)))
+    );
+    successResponse(res, restaurants);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/", validate(RestaurantSchema), async (req, res, next) => {
   const data = req.body as Restaurant;
   try {
